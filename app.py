@@ -95,6 +95,9 @@ def generate_pickle_files():
         
         # Function to convert string representation of list to actual list
         def convert(text):
+            # Handle case where text is already a list
+            if isinstance(text, list):
+                return text
             L = []
             for i in ast.literal_eval(text):
                 L.append(i['name'])
@@ -102,6 +105,9 @@ def generate_pickle_files():
         
         # Function to fetch the director name from crew
         def fetch_director(text):
+            # Handle case where text is already a list
+            if isinstance(text, list):
+                return [i for i in text if isinstance(i, dict) and i.get('job') == 'Director']
             L = []
             for i in ast.literal_eval(text):
                 if i['job'] == 'Director':
@@ -110,6 +116,9 @@ def generate_pickle_files():
         
         # Function to get the top 3 elements
         def fetch3(text):
+            # Handle case where text is already a list
+            if isinstance(text, list):
+                return text[:3]
             L = []
             counter = 0
             for i in ast.literal_eval(text):
@@ -120,9 +129,15 @@ def generate_pickle_files():
         
         # Function to remove spaces from lists
         def collapse(L):
+            # Handle None or empty list
+            if L is None or len(L) == 0:
+                return []
             L1 = []
             for i in L:
-                L1.append(i.replace(" ", ""))
+                if isinstance(i, str):
+                    L1.append(i.replace(" ", ""))
+                else:
+                    L1.append(str(i))
             return L1
         
         # Apply the functions to the dataframe
@@ -142,16 +157,17 @@ def generate_pickle_files():
         movies_df['keywords'] = movies_df['keywords'].apply(collapse)
         
         # Create a new column 'tags' which is a combination of genres, keywords, cast and crew
-        movies_df['tags'] = movies_df['overview'] + movies_df['genres'] + movies_df['keywords'] + movies_df['cast'] + movies_df['crew']
+        # Convert overview to list first to avoid string + list concatenation error
+        movies_df['tags'] = movies_df.apply(lambda row: [row['overview']] + row['genres'] + row['keywords'] + row['cast'] + row['crew'], axis=1)
         
         # Create a new dataframe with only the columns we need
         new_df = movies_df[['movie_id', 'title', 'tags']]
         
         # Convert the tags column to a string
-        new_df['tags'] = new_df['tags'].apply(lambda x: " ".join(x) if isinstance(x, list) else x)
+        new_df['tags'] = new_df['tags'].apply(lambda x: " ".join([str(item) for item in x]) if isinstance(x, list) else (x if isinstance(x, str) else str(x)))
         
         # Convert to lowercase
-        new_df['tags'] = new_df['tags'].apply(lambda x: x.lower())
+        new_df['tags'] = new_df['tags'].apply(lambda x: x.lower() if isinstance(x, str) else '')
         progress_bar.progress(70)
         
         # Create count matrix from the tags
@@ -164,8 +180,14 @@ def generate_pickle_files():
         progress_bar.progress(90)
         
         # Save the processed data to pickle files
-        pickle.dump(new_df, open('movie_list.pkl', 'wb'))
-        pickle.dump(similarity_matrix, open('similarity.pkl', 'wb'))
+        movie_list_pkl = os.path.join(current_dir, 'movie_list.pkl')
+        similarity_pkl = os.path.join(current_dir, 'similarity.pkl')
+        
+        # Use with statement to ensure files are properly closed
+        with open(movie_list_pkl, 'wb') as f:
+            pickle.dump(new_df, f)
+        with open(similarity_pkl, 'wb') as f:
+            pickle.dump(similarity_matrix, f)
         progress_bar.progress(100)
         
         st.success("Data generation complete!")
@@ -179,10 +201,18 @@ def generate_pickle_files():
 
 # Load movie data and similarity matrix with error handling
 try:
+    # Get current directory
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    movie_list_pkl = os.path.join(current_dir, 'movie_list.pkl')
+    similarity_pkl = os.path.join(current_dir, 'similarity.pkl')
+    
     # Check if pickle files exist
-    if os.path.exists('movie_list.pkl') and os.path.exists('similarity.pkl'):
-        movies = pickle.load(open('movie_list.pkl','rb'))
-        similarity = pickle.load(open('similarity.pkl','rb'))
+    if os.path.exists(movie_list_pkl) and os.path.exists(similarity_pkl):
+        # Use with statement to ensure files are properly closed
+        with open(movie_list_pkl, 'rb') as f:
+            movies = pickle.load(f)
+        with open(similarity_pkl, 'rb') as f:
+            similarity = pickle.load(f)
     else:
         # Generate pickle files if they don't exist
         movies, similarity = generate_pickle_files()

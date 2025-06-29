@@ -112,8 +112,11 @@ except Exception as e:
 # Save the processed data to pickle files
 print(f"Saving pickle files to:\n{movie_list_pkl}\n{similarity_pkl}")
 try:
-    pickle.dump(new, open(movie_list_pkl, 'wb'))
-    pickle.dump(similarity, open(similarity_pkl, 'wb'))
+    # Use with statement to ensure files are properly closed
+    with open(movie_list_pkl, 'wb') as f:
+        pickle.dump(new, f)
+    with open(similarity_pkl, 'wb') as f:
+        pickle.dump(similarity, f)
     print("Pickle files saved successfully.")
 except Exception as e:
     print(f"Error saving pickle files: {e}")
